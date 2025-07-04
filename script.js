@@ -2710,10 +2710,12 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
     let lastDrawnTextBottomY = baseY;
 
     const sentenceFullText = (sentenceObject.line1 + " " + sentenceObject.line2).trim();
-    const isCurrentBlockContentQuestionType = isQuestion(sentenceFullText);    for (let i = 0; i < lines.length; i++) {
+    const isCurrentBlockContentQuestionType = isQuestion(sentenceFullText);
+
+    for (let i = 0; i < lines.length; i++) {
         const lineText = lines[i];
         let currentLineCenterY = yFirstLineTextCenter + i * LINE_HEIGHT;
-          // 모바일 환경 감지
+        // 모바일 환경 감지
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         // 각 줄마다 색상 플래그 초기화 (줄별로 독립적으로 색상 처리)
         // 의문문과 답변문을 분리해서 처리
@@ -2796,24 +2798,28 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
                     // 의문사 - 항상 녹색
                     color = '#249F24';
                 }
-                else if (j === 1 && isSecondWordAux) {
-                    // 조동사 - 항상 파란색
-                    color = "#CC8400";
+                else if (j > 0 && isAux(cleanedWords[j])) {
+                    // 의문사 다음에 오는 모든 조동사(두 번째, 세 번째, ...)
+                    color = "#4A9FFF"; // 스카이 블루
+                }
+                else if (j === 2 && isAux(cleanedWords[1]) && !isAux(cleanedWords[2])) {
+                    // 조동사 다음에 오는 주어(의문사-조동사-주어 패턴)
+                    color = "#1A6DFF"; // 짙은 파란색
                 }
                 else if (j === 2) {
                     // 세 번째 단어
                     if (pattern1) {
                         // 패턴 1: 의문사 + 조동사 + 주어 + 동사
-                        color = "#CC8400"; // 주어는 파란색
+                        color = "#1A6DFF"; // 짙은 파란색
                     } else if (pattern2 && isVerb(cleanedWords[2])) {
                         // 패턴 2: 의문사 + 조동사 + 동사
-                        color = "#FFD600"; // 동사는 노란색
+                        color = "#1A6DFF"; // 짙은 파란색
                         blockContext.verbFoundInPattern2 = true; // 패턴 2에서 동사 발견 표시
                     }
                 }
                 else if (j === 3 && pattern1 && isVerb(cleanedWords[3])) {
                     // 패턴 1의 네 번째 단어 (동사)
-                    color = "#FFD600"; // 동사는 노란색
+                    color = "#1A6DFF"; // 짙은 파란색
                 }
             }            // 의문문의 둘째줄은 모두 흰색으로 표시
             else if (isCurrentBlockContentQuestionType && i === 1) {
@@ -2822,19 +2828,17 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
             }            // 답변 문장 (의문문이 아닌 경우)에는 조동사 하나만 파란색, 본동사 하나만 노란색, 나머지 모두 흰색
             else if (!isCurrentBlockContentQuestionType) {
                 // 기본적으로 모든 단어는 흰색
-                color = "#fff"; 
-                
-                // 조동사 체크 - 한 문장에 하나의 조동사만 파란색으로
-                if (isAux(lowerCleanedWordForColor) || isBeen(lowerCleanedWordForColor) && !blockContext.auxColored) {
-                    color = "#CC8400"; // 조동사는 파란색
-                    blockContext.auxColored = true; // 조동사 색상 적용 표시
-                } 
-                // 본동사 체크 - 한 문장에 본동사 하나만 노란색으로
-                else if (!blockContext.verbColored && isMainVerb(lowerCleanedWordForColor, j, words.length)) {
-                    color = "#FFD600"; // 본동사는 노란색
-                    blockContext.verbColored = true; // 동사 색상 적용 표시
+                color = "#fff";
+
+                // 주어 다음(두번째 단어, j==1)만 조동사이고, 그 외는 모두 흰색
+                if (j === 1 && isAux(lowerCleanedWordForColor)) {
+                    color = "#4A9FFF"; // 조동사: 스카이 블루
                 }
-                // 나머지 모든 단어(다른 동사 포함)는 흰색 (이미 기본값으로 설정됨)
+                // 조동사 다음에 오는 본동사(세 번째 단어 이상)
+                else if (j > 1 && isAux(words[j-1].toLowerCase().replace(/[^a-z0-9']/g, '')) && isVerb(lowerCleanedWordForColor)) {
+                    color = "#1A6DFF"; // 본동사: 파란색(기존대로)
+                }
+                // 나머지는 모두 흰색(기본값)
             }
             
             // 디버그용 콘솔 로그 (필요시 활성화)
@@ -3070,7 +3074,8 @@ function drawCenterSentence() {
         ctx.globalAlpha = centerAlpha;
         ctx.font = englishFont;
         ctx.textAlign = "left";
-        ctx.textBaseline = "middle";        subjectAuxClones.forEach(clone => {
+        ctx.textBaseline = "middle";
+        subjectAuxClones.forEach(clone => {
             // 복제본 텍스트 그리기 (조동사는 파란색, 주어는 흰색)
             const auxLength = clone.auxWord.length;
             const spaceLength = 1; // 공백 문자 1개
@@ -3084,10 +3089,9 @@ function drawCenterSentence() {
                 // 주어 부분(auxLength+1 ~ end)
                 const subjectChars = clone.charPositions.slice(clone.auxLength + 1);
                 
-                // 교환 애니메이션 중에도 원래 색상 유지
                 // 조동사는 항상 파란색
                 auxChars.forEach(charPos => {
-                    ctx.fillStyle = '#CC8400'; // 조동사 - 파란색
+                    ctx.fillStyle = '#4A9FFF'; // 조동사 - 파란색
                     ctx.fillText(charPos.char, charPos.x, charPos.currentY);
                 });
                 
@@ -3107,7 +3111,7 @@ function drawCenterSentence() {
             clone.charPositions.forEach((charPos, index) => {
                 if (index < auxLength) {
                     // 조동사 부분 - 파란색
-                    ctx.fillStyle = '#CC8400';
+                    ctx.fillStyle = '#4A9FFF';
                 } else if (index < auxLength + spaceLength) {
                     // 공백 부분 - 흰색
                     ctx.fillStyle = '#ffffff';
@@ -3129,8 +3133,8 @@ function drawCenterSentence() {
         ctx.textBaseline = "middle";
         
         verbClones.forEach(clone => {
-            // 동사 복제본 그리기 (동사는 노란색)
-            ctx.fillStyle = '#FFD600';
+            // 동사 복제본 그리기 (동사는 파란색)
+            ctx.fillStyle = '#4A9FFF';
             clone.charPositions.forEach(charPos => {
                 ctx.fillText(charPos.char, charPos.x, charPos.currentY);
             });
@@ -4600,11 +4604,15 @@ function populateSentenceList() {
                 // 실제 단어 추출 (마침표, 콤마 등 제외)
                 const actualWord = word.replace(/[^\w\']/g, '');
                 
-                // 의문사는 녹색, 조동사는 주황색, 나머지는 흰색
+                // 의문사 다음에 나오는 조동사만 #1A6DFF, 그 외 의문사는 녹색, 나머지 조동사는 기존대로
                 if (isQuestionWord(actualWord)) {
                     wordSpan.style.color = '#249F24'; // 의문사 진한 녹색
+                } else if (
+                    wordIndex > 0 && isModalVerb(actualWord) && isQuestionWord(words[wordIndex - 1].replace(/[^\w\']/g, ''))
+                ) {
+                    wordSpan.style.color = '#4A9FFF'; // 의문사 다음 조동사만 스카이 블루
                 } else if (isModalVerb(actualWord)) {
-                    wordSpan.style.color = '#CC8400'; // 조동사 진한 주황색
+                    wordSpan.style.color = '#1A6DFF'; // 나머지 조동사 파란색
                 } else {
                     wordSpan.style.color = 'white'; // 나머지 흰색
                 }
